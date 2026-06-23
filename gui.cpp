@@ -225,8 +225,9 @@ MyFrame::MyFrame(wxWindow *parent, wxWindowID id, const wxString &title,
 
 	calsizer->AddSpacer(8);
 	text = new wxStaticText(panel, wxID_ANY, "");
-	text->SetLabelMarkup("<small>Calibration should be performed\n<b>after</b> final installation.  Presence\nof magnets and ferrous metals\ncan alter magnetic calibration.\nMechanical stress during\nassembly can alter accelerometer\nand gyroscope calibration.</small>");
-	//text->Wrap(200);
+	text->SetLabelMarkup("<small>Calibration should be performed <b>after</b> final installation. Presence of magnets and ferrous metals can alter magnetic calibration. Mechanical stress during assembly can alter accelerometer and gyroscope calibration.</small>");
+	text->Wrap(220);
+	text->SetMinSize(wxSize(220, text->GetBestSize().GetHeight()));
 	//calsizer->Add(text, 0, wxEXPAND | wxALIGN_CENTER_HORIZONTAL, 0);
 	calsizer->Add(text, 0, wxALIGN_CENTER_HORIZONTAL, 0);
 
@@ -424,9 +425,18 @@ void MyFrame::OnAbout(wxCommandEvent &event)
 {
         wxMessageDialog dialog(this,
                 "MotionCal - Motion Sensor Calibration Tool\n\n"
+		"Original project:\n"
 		"Paul Stoffregen <paul@pjrc.com>\n"
 		"http://www.pjrc.com/store/prop_shield.html\n"
 		"https://github.com/PaulStoffregen/MotionCal\n\n"
+		"Source / Download:\n"
+		"https://github.com/chmhlive/MotionCal\n\n"
+		"This build:\n"
+		"Target: Windows x86-64\n"
+		"GUI: wxWidgets 3.3.2 (MSW, static)\n"
+		"OpenGL: wxGLCanvas + OpenGL/GLU\n"
+		"Toolchain: x86_64-w64-mingw32 GCC 10-win32\n"
+		"Build script: ./build_windows.sh\n\n"
 		"Copyright 2018, PJRC.COM, LLC.",
                 "About MotionCal", wxOK|wxICON_INFORMATION|wxCENTER);
         dialog.ShowModal();
@@ -472,7 +482,4 @@ int MyApp::OnExit()
 {
 	return 0;
 }
-
-
-
 

@@ -43,7 +43,7 @@ VERSION = 0.01
 else ifeq ($(OS), WINDOWS)
 ALL = MotionCal.exe
 #MINGW_TOOLCHAIN = i586-mingw32msvc
-MINGW_TOOLCHAIN = i686-w64-mingw32
+MINGW_TOOLCHAIN = x86_64-w64-mingw32
 CC = $(MINGW_TOOLCHAIN)-gcc
 CXX = $(MINGW_TOOLCHAIN)-g++
 WINDRES = $(MINGW_TOOLCHAIN)-windres
@@ -54,7 +54,7 @@ LDFLAGS = -static -static-libgcc
 SFLAG = -s
 #WXCONFIG = ~/wxwidgets/3.0.2.mingw-opengl-i586/bin/wx-config
 #WXCONFIG = ~/wxwidgets/3.0.2.mingw-opengl/bin/wx-config
-WXCONFIG = ~/wxwidgets/3.1.0.mingw-opengl/bin/wx-config
+WXCONFIG = ../wxWidgets/build-mingw64/install/bin/wx-config
 CLILIBS = -lglut32 -lglu32 -lopengl32 -lm
 MAKEFLAGS = --jobs=12
 
@@ -69,7 +69,7 @@ MotionCal: gui.o portlist.o images.o $(OBJS)
 	$(CXX) $(SFLAG) $(CFLAGS) $(LDFLAGS) -o $@ $^ `$(WXCONFIG) --libs all,opengl`
 
 MotionCal.exe: resource.o gui.o portlist.o images.o $(OBJS)
-	$(CXX) $(SFLAG) $(CFLAGS) $(LDFLAGS) -o $@ $^ `$(WXCONFIG) --libs all,opengl`
+	$(CXX) $(SFLAG) $(CFLAGS) $(LDFLAGS) -o $@ $^ `$(WXCONFIG) --libs gl` `$(WXCONFIG) --libs all` -lglu32
 	-pjrcwinsigntool $@
 	-./cp_windows.sh $@
 
@@ -112,4 +112,3 @@ matrix.o: matrix.c imuread.h Makefile
 fusion.o: fusion.c imuread.h Makefile
 quality.o: quality.c imuread.h Makefile
 mahony.o: mahony.c imuread.h Makefile
-
