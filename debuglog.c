@@ -35,7 +35,9 @@ static void dirname_from_argv0(const char *argv0, char *out, size_t outlen)
 	}
 	slash = strrchr(argv0, '/');
 	backslash = strrchr(argv0, '\\');
-	end = slash > backslash ? slash : backslash;
+	if (!slash) end = backslash;
+	else if (!backslash) end = slash;
+	else end = slash > backslash ? slash : backslash;
 	if (end == NULL) {
 		strncpy(out, ".", outlen - 1);
 		out[outlen - 1] = 0;
@@ -123,16 +125,9 @@ static void vlog_printf(const char *fmt, va_list ap)
 
 void debuglog_init(const char *argv0)
 {
-	char dir[1024];
-
-	dirname_from_argv0(argv0, dir, sizeof(dir));
-	path_join(log_path, sizeof(log_path), dir, "MotionCal.log");
-	path_join(debug_flag_path, sizeof(debug_flag_path), dir, "MotionCal.debug");
-	rotate_log_if_needed();
-	log_file = fopen(log_path, "a");
-	verbose_enabled = file_exists(debug_flag_path);
-	debuglog_printf("MotionCal start log=%s verbose=%s", log_path,
-		verbose_enabled ? "on" : "off");
+	(void)argv0;
+	log_file = NULL;
+	verbose_enabled = 0;
 }
 
 void debuglog_close(void)

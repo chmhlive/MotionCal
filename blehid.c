@@ -14,7 +14,7 @@
 #define BLEHID_READ_TIMEOUT_MS 1
 #define BLEHID_READBACK_TIMEOUT_ATTEMPTS 50
 #define BLEHID_READBACK_TIMEOUT_MS 20
-#define BLEHID_CMD_DELAY_MS 20
+#define BLEHID_CMD_DELAY_MS 50
 #define BLEHID_OPEN_SETTLE_MS 50
 #define BLEHID_CONFIRM_DELAY_MS 200
 
@@ -27,6 +27,8 @@ static BleHidDeviceInfo devices[BLEHID_MAX_DEVICES];
 static int device_count;
 static hid_device *handle;
 static int read_count;
+
+static void blehid_close_internal(int restore_cal);
 
 static int clamp_int16(float value)
 {
@@ -203,6 +205,8 @@ int blehid_is_open(void)
 	return handle != NULL;
 }
 
+
+
 int blehid_open(const char *name)
 {
 	int index;
@@ -229,17 +233,17 @@ int blehid_open(const char *name)
 #endif
 	if (blehid_set_mag_cal_enabled(0) < 0) {
 		debuglog_printf("hid CMD8 disable mag calibration failed error=%s", hid_error_text());
-		blehid_close();
+		blehid_close_internal(0);
 		return 0;
 	}
 	if (!blehid_confirm_mag_cal_enabled(0)) {
 		debuglog_printf("hid mag calibration disable readback failed");
-		blehid_close();
+		blehid_close_internal(0);
 		return 0;
 	}
 	if (send_run_mode(1) < 0) {
 		debuglog_printf("hid CMD1 start failed error=%s", hid_error_text());
-		blehid_close();
+		blehid_close_internal(0);
 		return 0;
 	}
 	debuglog_printf("hid CMD1 mode=1 sent");
@@ -311,20 +315,20 @@ static int blehid_read_param(unsigned short offset, unsigned char len, unsigned 
 			return 0;
 		}
 		if (n == 0) continue;
-			if (buf[0] == 3 && n >= 41) {
-				parse_report3_payload(buf + 1, n - 1, buf[0]);
+		if (buf[0] == 3 && n >= 41) {
+			parse_report3_payload(buf + 1, n - 1, buf[0]);
 #if defined(WINDOWS)
-				Sleep(5);
+			Sleep(5);
 #endif
-				continue;
-			}
-			if (buf[0] == 6 && n >= 43) {
-				parse_report3_payload(buf + 1, 40, buf[0]);
+			continue;
+		}
+		if (buf[0] == 6 && n >= 43) {
+			parse_report3_payload(buf + 1, 40, buf[0]);
 #if defined(WINDOWS)
-				Sleep(5);
+			Sleep(5);
 #endif
-				continue;
-			}
+			continue;
+		}
 		if (buf[0] == 4 && n >= 4) {
 			unsigned short got_offset = read_le_u16(buf + 1);
 			unsigned char got_len = buf[3];
@@ -426,15 +430,22 @@ int blehid_confirm_mag_cal_values(const float hard_iron[3], const float soft_iro
 	return 1;
 }
 
-void blehid_close(void)
+static void blehid_close_internal(int restore_cal)
 {
 	if (handle == NULL) return;
 	send_run_mode(0);
 	debuglog_printf("hid CMD1 mode=0 sent");
-	if (blehid_set_mag_cal_enabled(1) >= 0) {
-		blehid_confirm_mag_cal_enabled(1);
+	if (restore_cal) {
+		if (blehid_set_mag_cal_enabled(1) >= 0) {
+			blehid_confirm_mag_cal_enabled(1);
+		}
 	}
 	hid_close(handle);
 	handle = NULL;
 	debuglog_printf("hid close");
+}
+
+void blehid_close(void)
+{
+	blehid_close_internal(1);
 }
