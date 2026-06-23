@@ -8,22 +8,22 @@
 
 1. **安装 MinGW-w64**：确保环境中拥有 `x86_64-w64-mingw32-gcc` 及 `g++` 工具链。
 2. **准备 wxWidgets**：
-   - 源码需放置于工作区根目录下的 `wxWidgets/` 目录中。
-   - 使用 MinGW 工具链对 wxWidgets 进行**静态编译**（建议生成至 `wxWidgets/build-mingw64/install` 目录）。
-   - 确保 `wx-config` 脚本位于 `wxWidgets/build-mingw64/install/bin/wx-config` 且具有可执行权限。
+   - 使用 MinGW 工具链对 wxWidgets 进行**静态编译**。
+   - 确保存在可执行的 `wx-config`。
 3. **依赖库**：项目需要 `hidapi` 以及 Windows 标准的 `SetupAPI`、`Ole32`、`uuid`。
 
 ## 编译方法
 
-在父级工作区根目录执行提供的脚本即可进行增量编译（或直接在 `src` 下执行 `../build_windows.sh`）：
+在本项目根目录执行我们提供的脚本即可进行增量编译。
+如果你的 `wxWidgets` 安装路径与默认不符，可以通过 `WXCONFIG` 环境变量进行指定：
 ```bash
-../build_windows.sh
+WXCONFIG=/path/to/your/wx-config ./build_windows.sh
 ```
 若需清理后彻底重新编译，可带上参数：
 ```bash
-../build_windows.sh clean
+./build_windows.sh clean
 ```
-编译成功后，将在当前 `src/` 目录下生成 `MotionCal.exe`，构建日志存放于 `/tmp/motion_cal-build.log`。
+编译成功后，将在当前目录下生成 `MotionCal.exe`，构建日志存放于 `/tmp/motion_cal-build.log`。
 
 ## 日志开关
 
