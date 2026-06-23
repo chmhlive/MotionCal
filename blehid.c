@@ -12,8 +12,11 @@
 
 #define BLEHID_MAX_DEVICES 8
 #define BLEHID_READ_TIMEOUT_MS 1
-#define BLEHID_READBACK_TIMEOUT_ATTEMPTS 25
+#define BLEHID_READBACK_TIMEOUT_ATTEMPTS 50
 #define BLEHID_READBACK_TIMEOUT_MS 20
+#define BLEHID_CMD_DELAY_MS 20
+#define BLEHID_OPEN_SETTLE_MS 50
+#define BLEHID_CONFIRM_DELAY_MS 200
 
 typedef struct {
 	char name[128];
@@ -92,6 +95,15 @@ static int send_run_mode(unsigned char mode)
 	unsigned char data[1];
 	data[0] = mode;
 	return blehid_write_cmd(1, data, 1);
+}
+
+static void command_delay(void)
+{
+#if defined(WINDOWS)
+	Sleep(BLEHID_CMD_DELAY_MS);
+#else
+	/* Non-Windows builds do not currently use BLE HID writes. */
+#endif
 }
 
 static void write_le_float(unsigned char *p, float value)
@@ -212,6 +224,9 @@ int blehid_open(const char *name)
 	}
 	read_count = 0;
 	debuglog_printf("hid open ok name=%s path=%s", devices[index].name, devices[index].path);
+#if defined(WINDOWS)
+	Sleep(BLEHID_OPEN_SETTLE_MS);
+#endif
 	if (blehid_set_mag_cal_enabled(0) < 0) {
 		debuglog_printf("hid CMD8 disable mag calibration failed error=%s", hid_error_text());
 		blehid_close();
@@ -269,6 +284,7 @@ int blehid_write_cmd(unsigned char cmd, const unsigned char *data, int len)
 	if (data != NULL && len > 0) memcpy(report + 2, data, (size_t)len);
 	n = hid_write(handle, report, sizeof(report));
 	debuglog_verbose_printf("hid write cmd=%u len=%d result=%d", (unsigned)cmd, len, n);
+	if (n >= 0) command_delay();
 	return n;
 }
 
@@ -295,14 +311,20 @@ static int blehid_read_param(unsigned short offset, unsigned char len, unsigned 
 			return 0;
 		}
 		if (n == 0) continue;
-		if (buf[0] == 3 && n >= 41) {
-			parse_report3_payload(buf + 1, n - 1, buf[0]);
-			continue;
-		}
-		if (buf[0] == 6 && n >= 43) {
-			parse_report3_payload(buf + 1, 40, buf[0]);
-			continue;
-		}
+			if (buf[0] == 3 && n >= 41) {
+				parse_report3_payload(buf + 1, n - 1, buf[0]);
+#if defined(WINDOWS)
+				Sleep(5);
+#endif
+				continue;
+			}
+			if (buf[0] == 6 && n >= 43) {
+				parse_report3_payload(buf + 1, 40, buf[0]);
+#if defined(WINDOWS)
+				Sleep(5);
+#endif
+				continue;
+			}
 		if (buf[0] == 4 && n >= 4) {
 			unsigned short got_offset = read_le_u16(buf + 1);
 			unsigned char got_len = buf[3];
@@ -340,7 +362,12 @@ int blehid_write_mag_cal(unsigned char index, float value)
 
 int blehid_set_mag_cal_enabled(int enabled)
 {
-	int n = blehid_write_mag_cal(0, enabled ? 1.0f : 0.0f);
+	unsigned char data[2];
+	int n;
+
+	data[0] = 0;
+	data[1] = enabled ? 1 : 0;
+	n = blehid_write_cmd(8, data, sizeof(data));
 	if (n >= 0) debuglog_printf("hid CMD8 mag_cal_enable=%d sent", enabled ? 1 : 0);
 	return n;
 }
@@ -349,6 +376,9 @@ int blehid_confirm_mag_cal_enabled(int enabled)
 {
 	unsigned char value;
 
+#if defined(WINDOWS)
+	Sleep(BLEHID_CONFIRM_DELAY_MS);
+#endif
 	if (!blehid_read_param(0x002E, 1, &value)) return 0;
 	if (value != (unsigned char)(enabled ? 1 : 0)) {
 		debuglog_printf("hid mag_cal_enable mismatch expected=%d actual=%u",

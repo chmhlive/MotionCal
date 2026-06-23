@@ -233,21 +233,49 @@ void raw_data(const int16_t *data)
 int send_calibration(void)
 {
 	int i;
-	int row, col;
+	struct {
+		unsigned char index;
+		float value;
+	} soft_map[] = {
+		{4, 0.0f}, {5, 0.0f}, {6, 0.0f},
+		{7, 0.0f}, {8, 0.0f}, {9, 0.0f},
+		{10, 0.0f}, {11, 0.0f}, {12, 0.0f},
+	};
+	float soft_expected[3][3];
+	float snap_V[3];
+	float snap_invW[3][3];
 
 	debuglog_printf("send calibration via HID CMD8");
+	memcpy(snap_V, magcal.V, sizeof(snap_V));
+	memcpy(snap_invW, magcal.invW, sizeof(snap_invW));
 	for (i = 0; i < 3; i++) {
-		if (blehid_write_mag_cal((unsigned char)(1 + i), magcal.V[i]) < 0) return -1;
+		if (blehid_write_mag_cal((unsigned char)(1 + i), snap_V[i]) < 0) return -1;
 	}
-	for (row = 0; row < 3; row++) {
-		for (col = 0; col < 3; col++) {
-			unsigned char index = (unsigned char)(4 + row * 3 + col);
-			if (blehid_write_mag_cal(index, magcal.invW[row][col]) < 0) return -1;
-		}
+	soft_map[0].value = snap_invW[0][0];
+	soft_map[1].value = snap_invW[0][1];
+	soft_map[2].value = snap_invW[0][2];
+	soft_map[3].value = snap_invW[0][1];
+	soft_map[4].value = snap_invW[1][1];
+	soft_map[5].value = snap_invW[1][2];
+	soft_map[6].value = snap_invW[0][2];
+	soft_map[7].value = snap_invW[1][2];
+	soft_map[8].value = snap_invW[2][2];
+	for (i = 0; i < 9; i++) {
+		if (blehid_write_mag_cal(soft_map[i].index, soft_map[i].value) < 0) return -1;
 	}
+	memcpy(soft_expected, snap_invW, sizeof(soft_expected));
+	soft_expected[1][0] = soft_expected[0][1];
+	soft_expected[2][0] = soft_expected[0][2];
+	soft_expected[2][1] = soft_expected[1][2];
 	if (blehid_set_mag_cal_enabled(1) < 0) return -1;
-	if (!blehid_confirm_mag_cal_enabled(1)) return -1;
-	if (!blehid_confirm_mag_cal_values(magcal.V, magcal.invW)) return -1;
-	calibration_confirmed();
-	return 1;
+	{
+		int enable_ok = blehid_confirm_mag_cal_enabled(1);
+		int values_ok = blehid_confirm_mag_cal_values(snap_V, soft_expected);
+		if (enable_ok && values_ok) {
+			calibration_confirmed();
+			return 1;
+		}
+		debuglog_printf("hid calibration confirm failed enable=%d values=%d", enable_ok, values_ok);
+		return 0;
+	}
 }

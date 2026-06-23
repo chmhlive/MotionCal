@@ -349,6 +349,8 @@ void MyFrame::OnClear(wxCommandEvent &event)
 
 void MyFrame::OnSendCal(wxCommandEvent &event)
 {
+	int result;
+
 	debuglog_printf("send calibration requested");
 	/*printf("OnSendCal\n");
 	printf("Magnetic Calibration:   (%.1f%% fit error)\n", magcal.FitError);
@@ -360,7 +362,16 @@ void MyFrame::OnSendCal(wxCommandEvent &event)
 		magcal.V[2], magcal.invW[2][0], magcal.invW[2][1], magcal.invW[2][2]);
 	*/
 	m_confirm_icon->SetBitmap(MyBitmap("checkempty.png"));
-	send_calibration();
+	result = send_calibration();
+	if (result == 1) {
+		debuglog_printf("calibration sent and confirmed");
+	} else if (result == 0) {
+		debuglog_printf("calibration sent but confirm failed");
+		m_confirm_icon->SetBitmap(MyBitmap("checkemptygray.png"));
+	} else {
+		debuglog_printf("calibration send failed");
+		m_confirm_icon->SetBitmap(MyBitmap("checkemptygray.png"));
+	}
 }
 
 void calibration_confirmed(void)
