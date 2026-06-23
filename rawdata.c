@@ -5,6 +5,8 @@ static int rawcount=OVERSAMPLE_RATIO;
 static AccelSensor_t accel;
 static MagSensor_t   mag;
 static GyroSensor_t  gyro;
+static float latest_accel_g[3];
+static float latest_gyro_dps[3];
 
 static float cal_data_sent[19];
 static int cal_confirm_needed=0;
@@ -12,6 +14,8 @@ static int cal_confirm_needed=0;
 void raw_data_reset(void)
 {
 	rawcount = OVERSAMPLE_RATIO;
+	memset(latest_accel_g, 0, sizeof(latest_accel_g));
+	memset(latest_gyro_dps, 0, sizeof(latest_gyro_dps));
 	fusion_init();
 	memset(&magcal, 0, sizeof(magcal));
 	magcal.V[2] = 80.0f;  // initial guess
@@ -21,6 +25,12 @@ void raw_data_reset(void)
 	magcal.FitError = 100.0f;
 	magcal.FitErrorAge = 100.0f;
 	magcal.B = 50.0f;
+}
+
+void latest_motion_data(float *accel_g, float *gyro_dps)
+{
+	if (accel_g != NULL) memcpy(accel_g, latest_accel_g, sizeof(latest_accel_g));
+	if (gyro_dps != NULL) memcpy(gyro_dps, latest_gyro_dps, sizeof(latest_gyro_dps));
 }
 
 static int choose_discard_magcal(void)
@@ -234,6 +244,9 @@ void raw_data(const int16_t *data)
 	accel.GpFast[0] = x;
 	accel.GpFast[1] = y;
 	accel.GpFast[2] = z;
+	latest_accel_g[0] = x;
+	latest_accel_g[1] = y;
+	latest_accel_g[2] = z;
 	accel.Gp[0] += x;
 	accel.Gp[1] += y;
 	accel.Gp[2] += z;
@@ -247,6 +260,9 @@ void raw_data(const int16_t *data)
 	gyro.YpFast[rawcount][0] = x;
 	gyro.YpFast[rawcount][1] = y;
 	gyro.YpFast[rawcount][2] = z;
+	latest_gyro_dps[0] = x;
+	latest_gyro_dps[1] = y;
+	latest_gyro_dps[2] = z;
 
 	apply_calibration(data[6], data[7], data[8], &point);
 	mag.BcFast[0] = point.x;
@@ -350,4 +366,3 @@ int send_calibration(void)
 	*p++ = crc >> 8;
 	return write_device_data(buf, 68);
 }
-

@@ -248,6 +248,7 @@ void MyFrame::OnTimer(wxTimerEvent &event)
 {
 	static int firstrun=1;
 	float gaps, variance, wobble, fiterror;
+	float accel_g[3], gyro_dps[3];
 	char buf[32];
 	int i, j;
 
@@ -298,12 +299,13 @@ void MyFrame::OnTimer(wxTimerEvent &event)
 		}
 		snprintf(buf, sizeof(buf), "%.2f", magcal.B);
 		m_mag_field->SetLabelText(buf);
+		latest_motion_data(accel_g, gyro_dps);
 		for (i=0; i < 3; i++) {
-			snprintf(buf, sizeof(buf), "%.3f", 0.0f); // TODO...
+			snprintf(buf, sizeof(buf), "%.3f", accel_g[i]);
 			m_accel[i]->SetLabelText(buf);
 		}
 		for (i=0; i < 3; i++) {
-			snprintf(buf, sizeof(buf), "%.3f", 0.0f); // TODO...
+			snprintf(buf, sizeof(buf), "%.3f", gyro_dps[i]);
 			m_gyro[i]->SetLabelText(buf);
 		}
 	} else {

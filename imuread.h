@@ -55,6 +55,7 @@ void cal1_data(const float *data);
 void cal2_data(const float *data);
 void calibration_confirmed(void);
 void raw_data(const int16_t *data);
+void latest_motion_data(float *accel_g, float *gyro_dps);
 int send_calibration(void);
 void visualize_init(void);
 void apply_calibration(int16_t rawx, int16_t rawy, int16_t rawz, Point_t *out);
