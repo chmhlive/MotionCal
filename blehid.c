@@ -200,6 +200,13 @@ int blehid_is_device_name(const char *name)
 	return find_device_index(name) >= 0;
 }
 
+int blehid_set_run_mode(int mode)
+{
+	int n = send_run_mode((unsigned char)(mode ? 1 : 0));
+	if (n >= 0) debuglog_printf("hid CMD1 mode=%d sent", mode ? 1 : 0);
+	return n;
+}
+
 int blehid_is_open(void)
 {
 	return handle != NULL;
