@@ -6,24 +6,24 @@
 
 本项目推荐在 Linux（或 WSL）系统下，使用交叉编译工具链生成 Windows 可执行文件。
 
-1. **安装 MinGW-w64**：确保环境中拥有 `x86_64-w64-mingw32-gcc` 及 `g++` 工具链。
+1. **环境准备**：需要相应的 C/C++ 编译器（如 GCC/MinGW）。
 2. **准备 wxWidgets**：
-   - 使用 MinGW 工具链对 wxWidgets 进行**静态编译**。
-   - 确保存在可执行的 `wx-config`。
-3. **依赖库**：项目需要 `hidapi` 以及 Windows 标准的 `SetupAPI`、`Ole32`、`uuid`。
+   - 使用目标编译链对 wxWidgets 进行静态或动态编译。
+   - 确保系统环境变量中存在可执行的 `wx-config`，或者在编译时通过环境变量指定。
+3. **依赖库**：项目需要 `hidapi` 以及目标操作系统的相应底层支持库（如 Windows 下的 `SetupAPI`、`Ole32` 等）。
 
 ## 编译方法
 
-在本项目根目录执行我们提供的脚本即可进行增量编译。
-如果你的 `wxWidgets` 安装路径与默认不符，可以通过 `WXCONFIG` 环境变量进行指定：
+在项目根目录（即包含 Makefile 的目录）执行标准的 `make` 命令即可进行编译。
+可以根据目标平台传递相应的环境变量，例如：
 ```bash
-WXCONFIG=/path/to/your/wx-config ./build_windows.sh
+make OS=WINDOWS MINGW_TOOLCHAIN=x86_64-w64-mingw32 WXCONFIG=/path/to/wx-config
 ```
-若需清理后彻底重新编译，可带上参数：
+若需清理后彻底重新编译：
 ```bash
-./build_windows.sh clean
+make clean
 ```
-编译成功后，将在当前目录下生成 `MotionCal.exe`，构建日志存放于 `/tmp/motion_cal-build.log`。
+编译成功后，将在当前目录下生成可执行文件（例如 `MotionCal.exe`）。
 
 ## 日志开关
 
@@ -50,9 +50,9 @@ WXCONFIG=/path/to/your/wx-config ./build_windows.sh
    - `Mode = 0`：暂停传感器数据采集（下发大批量配置前必须执行，防止信道拥堵）。
    - `Mode = 1`：恢复传感器数据上报。
 
-## 他人使用时：如何修改 HID 的数据帧？
+## 移植与二次开发指南
 
-如果你需要将此项目适配自己的硬件，请关注 `blehid.c` 文件中的几个核心解析与打包函数：
+如果你需要将此项目适配自己的硬件固件，请关注 `blehid.c` 文件中的几个核心解析与打包函数：
 
 1. **修改传感器报文解析方式**：
    - 定位到 `parse_report3_payload(const unsigned char *buf, int len, int report_id)` 函数。
