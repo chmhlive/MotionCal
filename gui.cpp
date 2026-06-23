@@ -3,7 +3,7 @@
 #include "debuglog.h"
 
 
-wxString port_name;
+wxString device_name;
 static bool show_calibration_confirmed = false;
 
 
@@ -65,10 +65,10 @@ BEGIN_EVENT_TABLE(MyFrame,wxFrame)
 	EVT_BUTTON(ID_CLEAR_BUTTON, MyFrame::OnClear)
 	EVT_BUTTON(ID_SENDCAL_BUTTON, MyFrame::OnSendCal)
 	EVT_TIMER(ID_TIMER, MyFrame::OnTimer)
-	EVT_MENU_RANGE(9000, 9999, MyFrame::OnPortMenu)
+	EVT_MENU_RANGE(9000, 9999, MyFrame::OnDeviceMenu)
 	EVT_MENU_OPEN(MyFrame::OnShowMenu)
-	EVT_COMBOBOX(ID_PORTLIST, MyFrame::OnPortList)
-	EVT_COMBOBOX_DROPDOWN(ID_PORTLIST, MyFrame::OnShowPortList)
+	EVT_COMBOBOX(ID_DEVICELIST, MyFrame::OnDeviceList)
+	EVT_COMBOBOX_DROPDOWN(ID_DEVICELIST, MyFrame::OnShowDeviceList)
 END_EVENT_TABLE()
 
 
@@ -98,8 +98,8 @@ MyFrame::MyFrame(wxWindow *parent, wxWindowID id, const wxString &title,
 	menuBar->Append(menu, wxT("&File"));
 
 	menu = new wxMenu;
-	menuBar->Append(menu, "Port");
-	m_port_menu = menu;
+	menuBar->Append(menu, "Device");
+	m_device_menu = menu;
 
 	menu = new wxMenu;
 	menu->Append(wxID_ABOUT, wxT("About"));
@@ -116,14 +116,14 @@ MyFrame::MyFrame(wxWindow *parent, wxWindowID id, const wxString &title,
 
 	vsizer = new wxBoxSizer(wxVERTICAL);
 	leftsizer->Add(vsizer, 0, wxALL, 8);
-	text = new wxStaticText(panel, wxID_ANY, "Port");
+	text = new wxStaticText(panel, wxID_ANY, "Device");
 	vsizer->Add(text, 0, wxTOP|wxBOTTOM, 4);
-	m_port_list = new wxComboBox(panel, ID_PORTLIST, "",
+	m_device_list = new wxComboBox(panel, ID_DEVICELIST, "",
 		wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY);
-	m_port_list->Append("(none)");
-	m_port_list->Append(SAMPLE_PORT_NAME); // never seen, only for initial size
-	m_port_list->SetSelection(0);
-	vsizer->Add(m_port_list, 1, wxEXPAND, 0);
+	m_device_list->Append("(none)");
+	m_device_list->Append(SAMPLE_DEVICE_NAME); // never seen, only for initial size
+	m_device_list->SetSelection(0);
+	vsizer->Add(m_device_list, 1, wxEXPAND, 0);
 
 	vsizer->AddSpacer(8);
 	text = new wxStaticText(panel, wxID_ANY, "Actions");
@@ -240,7 +240,6 @@ MyFrame::MyFrame(wxWindow *parent, wxWindowID id, const wxString &title,
 
 	m_canvas->InitGL();
 	raw_data_reset();
-	//open_port(PORT);
 	m_timer = new wxTimer(this, ID_TIMER);
 	m_timer->Start(14, wxTIMER_CONTINUOUS);
 }
@@ -253,8 +252,8 @@ void MyFrame::OnTimer(wxTimerEvent &event)
 	int i, j;
 
 	//printf("OnTimer\n");
-	if (port_is_open()) {
-		read_serial_data();
+	if (device_is_open()) {
+		read_device_data();
 		if (firstrun && m_canvas->IsShown()) {
 			//int h, w;
 			//m_canvas->GetSize(&w, &h);
@@ -308,16 +307,16 @@ void MyFrame::OnTimer(wxTimerEvent &event)
 			m_gyro[i]->SetLabelText(buf);
 		}
 	} else {
-		if (!port_name.IsEmpty()) {
-			//printf("port has closed, updating stuff\n");
+		if (!device_name.IsEmpty()) {
+			//printf("device has closed, updating stuff\n");
 			m_sendcal_menu->Enable(ID_SENDCAL_MENU, false);
 			m_button_clear->Enable(false);
 			m_button_sendcal->Enable(false);
 			m_confirm_icon->SetBitmap(MyBitmap("checkemptygray.png"));
-			m_port_list->Clear();
-			m_port_list->Append("(none)");
-			m_port_list->SetSelection(0);
-			port_name = "";
+			m_device_list->Clear();
+			m_device_list->Append("(none)");
+			m_device_list->SetSelection(0);
+			device_name = "";
 		}
 	}
 	if (show_calibration_confirmed) {
@@ -357,68 +356,68 @@ void calibration_confirmed(void)
 void MyFrame::OnShowMenu(wxMenuEvent &event)
 {
         wxMenu *menu = event.GetMenu();
-        if (menu != m_port_menu) return;
-        //printf("OnShow Port Menu, %s\n", (const char *)menu->GetTitle());
+        if (menu != m_device_menu) return;
+        //printf("OnShow Device Menu, %s\n", (const char *)menu->GetTitle());
 	while (menu->GetMenuItemCount() > 0) {
 		menu->Delete(menu->GetMenuItems()[0]);
 	}
         menu->AppendRadioItem(9000, " (none)");
-	bool isopen = port_is_open();
+	bool isopen = device_is_open();
 	if (!isopen) menu->Check(9000, true);
-        wxArrayString list = serial_port_list();
+        wxArrayString list = device_list();
         int num = list.GetCount();
         for (int i=0; i < num; i++) {
                 menu->AppendRadioItem(9001 + i, list[i]);
-                if (isopen && port_name.IsSameAs(list[i])) {
+                if (isopen && device_name.IsSameAs(list[i])) {
                         menu->Check(9001 + i, true);
                 }
         }
 	menu->UpdateUI();
 }
 
-void MyFrame::OnShowPortList(wxCommandEvent& event)
+void MyFrame::OnShowDeviceList(wxCommandEvent& event)
 {
-	//printf("OnShowPortList\n");
-	m_port_list->Clear();
-	m_port_list->Append("(none)");
-	wxArrayString list = serial_port_list();
+	//printf("OnShowDeviceList\n");
+	m_device_list->Clear();
+	m_device_list->Append("(none)");
+	wxArrayString list = device_list();
 	int num = list.GetCount();
 	for (int i=0; i < num; i++) {
-		m_port_list->Append(list[i]);
+		m_device_list->Append(list[i]);
 	}
 }
 
 
-void MyFrame::OnPortMenu(wxCommandEvent &event)
+void MyFrame::OnDeviceMenu(wxCommandEvent &event)
 {
         int id = event.GetId();
-        wxString name = m_port_menu->FindItem(id)->GetItemLabelText();
+        wxString name = m_device_menu->FindItem(id)->GetItemLabelText();
 
-	close_port();
-        debuglog_printf("port menu selected id=%d name=%s", id, (const char *)name);
-        //printf("OnPortMenu, id = %d, name = %s\n", id, (const char *)name);
-	port_name = name;
-	m_port_list->Clear();
-	m_port_list->Append(port_name);
-	m_port_list->SetSelection(0);
+	close_device();
+        debuglog_printf("device menu selected id=%d name=%s", id, (const char *)name);
+        //printf("OnDeviceMenu, id = %d, name = %s\n", id, (const char *)name);
+	device_name = name;
+	m_device_list->Clear();
+	m_device_list->Append(device_name);
+	m_device_list->SetSelection(0);
         if (id == 9000) return;
 	raw_data_reset();
-	open_port((const char *)name);
+	open_device((const char *)name);
 	m_button_clear->Enable(true);
 }
 
-void MyFrame::OnPortList(wxCommandEvent& event)
+void MyFrame::OnDeviceList(wxCommandEvent& event)
 {
-	int selected = m_port_list->GetSelection();
+	int selected = m_device_list->GetSelection();
 	if (selected == wxNOT_FOUND) return;
-	wxString name = m_port_list->GetString(selected);
-	//printf("OnPortList, %s\n", (const char *)name);
-	close_port();
-	debuglog_printf("port list selected name=%s", (const char *)name);
-	port_name = name;
+	wxString name = m_device_list->GetString(selected);
+	//printf("OnDeviceList, %s\n", (const char *)name);
+	close_device();
+	debuglog_printf("device list selected name=%s", (const char *)name);
+	device_name = name;
 	if (name == "(none)") return;
 	raw_data_reset();
-	open_port((const char *)name);
+	open_device((const char *)name);
 	m_button_clear->Enable(true);
 }
 
@@ -454,7 +453,7 @@ void MyFrame::OnQuit( wxCommandEvent &event )
 MyFrame::~MyFrame(void)
 {
 	m_timer->Stop();
-	close_port();
+	close_device();
 }
 
 

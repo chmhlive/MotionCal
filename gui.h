@@ -27,7 +27,7 @@
 #define ID_SENDCAL_MENU		10001
 #define ID_CLEAR_BUTTON		10002
 #define ID_SENDCAL_BUTTON	10003
-#define ID_PORTLIST		10004
+#define ID_DEVICELIST		10004
 
 class MyCanvas : public wxGLCanvas
 {
@@ -80,15 +80,15 @@ private:
 	wxButton *m_button_clear;
 	wxButton *m_button_sendcal;
 	wxStaticBitmap *m_confirm_icon;
-	wxMenu *m_port_menu;
-	wxComboBox *m_port_list;
+	wxMenu *m_device_menu;
+	wxComboBox *m_device_list;
 	wxMenu *m_sendcal_menu;
 	void OnSendCal(wxCommandEvent &event);
 	void OnClear(wxCommandEvent &event);
 	void OnShowMenu(wxMenuEvent &event);
-	void OnShowPortList(wxCommandEvent &event);
-	void OnPortList(wxCommandEvent& event);
-	void OnPortMenu(wxCommandEvent &event);
+	void OnShowDeviceList(wxCommandEvent &event);
+	void OnDeviceList(wxCommandEvent& event);
+	void OnDeviceMenu(wxCommandEvent &event);
 	void OnTimer(wxTimerEvent &event);
 	void OnAbout(wxCommandEvent &event);
 	void OnQuit(wxCommandEvent &event);
@@ -106,20 +106,14 @@ private:
         //wxSingleInstanceChecker *m_instance;
 };
 
-// portlist.cpp
-wxArrayString serial_port_list();
+// devicelist.cpp
+wxArrayString device_list();
 
 // images.cpp
 wxBitmap MyBitmap(const char *name);
 
-// sample port name, for initial sizing of left panel
-#if defined(LINUX)
-#define SAMPLE_PORT_NAME "/dev/ttyACM5."
-#elif defined(WINDOWS)
-#define SAMPLE_PORT_NAME "COM22:."
-#elif defined(MACOSX)
-#define SAMPLE_PORT_NAME "/dev/cu.usbmodem2457891..."
-#endif
+// sample device name, for initial sizing of left panel
+#define SAMPLE_DEVICE_NAME "MB01 HID 1 - MB0101 [000000000000]"
 
 
 #endif

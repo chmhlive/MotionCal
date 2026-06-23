@@ -348,6 +348,6 @@ int send_calibration(void)
 	}
 	*p++ = crc;   // 2 byte crc check
 	*p++ = crc >> 8;
-	return write_serial_data(buf, 68);
+	return write_device_data(buf, 68);
 }
 
