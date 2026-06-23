@@ -1,4 +1,5 @@
 #include "imuread.h"
+#include "debuglog.h"
 
 
 void print_data(const char *name, const unsigned char *data, int len)
@@ -375,10 +376,14 @@ int open_port(const char *name)
 	int r;
 
 	portfd = open(name, O_RDWR | O_NONBLOCK);
-	if (portfd < 0) return 0;
+	if (portfd < 0) {
+		debuglog_printf("open serial failed name=%s errno=%d", name, errno);
+		return 0;
+	}
 	r = tcgetattr(portfd, &termsettings);
 	if (r < 0) {
 		close_port();
+		debuglog_printf("tcgetattr failed name=%s errno=%d", name, errno);
 		return 0;
 	}
 	cfmakeraw(&termsettings);
@@ -386,8 +391,10 @@ int open_port(const char *name)
 	r = tcsetattr(portfd, TCSANOW, &termsettings);
 	if (r < 0) {
 		close_port();
+		debuglog_printf("tcsetattr failed name=%s errno=%d", name, errno);
 		return 0;
 	}
+	debuglog_printf("open serial ok name=%s", name);
 	return 1;
 }
 
@@ -418,6 +425,7 @@ int read_serial_data(void)
 				return 0;
 			} else if (n == EINTR) {
 			} else {
+				debuglog_printf("read serial failed errno=%d", n);
 				close_port();
 				return -1;
 			}
@@ -456,6 +464,7 @@ int write_serial_data(const void *ptr, int len)
 void close_port(void)
 {
 	if (portfd >= 0) {
+		debuglog_printf("close serial");
 		close(portfd);
 		portfd = -1;
 	}
@@ -486,10 +495,12 @@ int open_port(const char *name)
 	port_handle = CreateFile(name, GENERIC_READ | GENERIC_WRITE,
 		0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 	if (port_handle == INVALID_HANDLE_VALUE) {
+		debuglog_printf("open serial failed name=%s error=%lu", name, (unsigned long)GetLastError());
 		return 0;
 	}
 	len = sizeof(COMMCONFIG);
 	if (!GetCommConfig(port_handle, &port_cfg, &len)) {
+		debuglog_printf("GetCommConfig failed name=%s error=%lu", name, (unsigned long)GetLastError());
 		CloseHandle(port_handle);
 		port_handle = INVALID_HANDLE_VALUE;
 		return 0;
@@ -512,11 +523,13 @@ int open_port(const char *name)
 	port_cfg.dcb.Parity = NOPARITY;
 	port_cfg.dcb.StopBits = ONESTOPBIT;
 	if (!SetCommConfig(port_handle, &port_cfg, sizeof(COMMCONFIG))) {
+		debuglog_printf("SetCommConfig failed name=%s error=%lu", name, (unsigned long)GetLastError());
 		CloseHandle(port_handle);
 		port_handle = INVALID_HANDLE_VALUE;
 		return 0;
 	}
 	if (!EscapeCommFunction(port_handle, CLRDTR | CLRRTS)) {
+		debuglog_printf("EscapeCommFunction CLRDTR/CLRRTS failed name=%s error=%lu", name, (unsigned long)GetLastError());
 		CloseHandle(port_handle);
 		port_handle = INVALID_HANDLE_VALUE;
 		return 0;
@@ -527,15 +540,18 @@ int open_port(const char *name)
         timeouts.WriteTotalTimeoutMultiplier    = 0;
         timeouts.WriteTotalTimeoutConstant      = 0;
         if (!SetCommTimeouts(port_handle, &timeouts)) {
+		debuglog_printf("SetCommTimeouts failed name=%s error=%lu", name, (unsigned long)GetLastError());
 		CloseHandle(port_handle);
 		port_handle = INVALID_HANDLE_VALUE;
 		return 0;
 	}
 	if (!EscapeCommFunction(port_handle, SETDTR)) {
+		debuglog_printf("EscapeCommFunction SETDTR failed name=%s error=%lu", name, (unsigned long)GetLastError());
 		CloseHandle(port_handle);
 		port_handle = INVALID_HANDLE_VALUE;
 		return 0;
 	}
+	debuglog_printf("open serial ok name=%s", name);
 	return 1;
 }
 
@@ -550,6 +566,7 @@ int read_serial_data(void)
 	if (port_handle == INVALID_HANDLE_VALUE) return -1;
 	while (1) {
 		if (!ClearCommError(port_handle, &errmask, &st)) {
+			debuglog_printf("ClearCommError failed error=%lu", (unsigned long)GetLastError());
 			r = -1;
 			break;
 		}
@@ -595,9 +612,11 @@ int read_serial_data(void)
 		}
 		CloseHandle(ov.hEvent);
 		if (r <= 0) break;
+		debuglog_verbose_printf("read serial bytes=%d", r);
 		newdata(buf, r);
 	}
 	if (r < 0) {
+		debuglog_printf("read serial failed, closing port");
 		CloseHandle(port_handle);
 		port_handle = INVALID_HANDLE_VALUE;
 	}
@@ -627,18 +646,23 @@ int write_serial_data(const void *ptr, int len)
 				r = -1;
 			}
 		} else {
-			//printf("Write, error\n");
-			r = -1;
+		//printf("Write, error\n");
+		debuglog_printf("WriteFile failed error=%lu", (unsigned long)GetLastError());
+		r = -1;
 		}
 	};
 	CloseHandle(ov.hEvent);
+	debuglog_verbose_printf("write serial requested=%d result=%d", len, r);
 	return r;
 }
 
 void close_port(void)
 {
-	CloseHandle(port_handle);
-	port_handle = INVALID_HANDLE_VALUE;
+	if (port_handle != INVALID_HANDLE_VALUE) {
+		debuglog_printf("close serial");
+		CloseHandle(port_handle);
+		port_handle = INVALID_HANDLE_VALUE;
+	}
 }
 
 

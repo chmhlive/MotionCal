@@ -1,5 +1,6 @@
 #include "gui.h"
 #include "imuread.h"
+#include "debuglog.h"
 
 
 wxString port_name;
@@ -333,6 +334,7 @@ void MyFrame::OnClear(wxCommandEvent &event)
 
 void MyFrame::OnSendCal(wxCommandEvent &event)
 {
+	debuglog_printf("send calibration requested");
 	/*printf("OnSendCal\n");
 	printf("Magnetic Calibration:   (%.1f%% fit error)\n", magcal.FitError);
 	printf("   %7.2f   %6.3f %6.3f %6.3f\n",
@@ -393,6 +395,7 @@ void MyFrame::OnPortMenu(wxCommandEvent &event)
         wxString name = m_port_menu->FindItem(id)->GetItemLabelText();
 
 	close_port();
+        debuglog_printf("port menu selected id=%d name=%s", id, (const char *)name);
         //printf("OnPortMenu, id = %d, name = %s\n", id, (const char *)name);
 	port_name = name;
 	m_port_list->Clear();
@@ -411,6 +414,7 @@ void MyFrame::OnPortList(wxCommandEvent& event)
 	wxString name = m_port_list->GetString(selected);
 	//printf("OnPortList, %s\n", (const char *)name);
 	close_port();
+	debuglog_printf("port list selected name=%s", (const char *)name);
 	port_name = name;
 	if (name == "(none)") return;
 	raw_data_reset();
@@ -464,6 +468,9 @@ MyApp::MyApp()
 
 bool MyApp::OnInit()
 {
+	wxCharBuffer argv0 = argc > 0 ? argv[0].mb_str() : wxCharBuffer();
+	debuglog_init(argv0.data());
+	debuglog_printf("wxWidgets init");
 	// make sure we exit properly on macosx
 	SetExitOnFrameDelete(true);
 
@@ -480,6 +487,6 @@ bool MyApp::OnInit()
 
 int MyApp::OnExit()
 {
+	debuglog_close();
 	return 0;
 }
-

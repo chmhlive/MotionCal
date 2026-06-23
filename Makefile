@@ -60,7 +60,7 @@ MAKEFLAGS = --jobs=12
 
 endif
 
-OBJS = visualize.o serialdata.o rawdata.o magcal.o matrix.o fusion.o quality.o mahony.o
+OBJS = visualize.o serialdata.o rawdata.o magcal.o matrix.o fusion.o quality.o mahony.o debuglog.o
 IMGS = checkgreen.png checkempty.png checkemptygray.png
 
 all: $(ALL)
@@ -112,3 +112,4 @@ matrix.o: matrix.c imuread.h Makefile
 fusion.o: fusion.c imuread.h Makefile
 quality.o: quality.c imuread.h Makefile
 mahony.o: mahony.c imuread.h Makefile
+debuglog.o: debuglog.c debuglog.h Makefile

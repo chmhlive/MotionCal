@@ -3,6 +3,7 @@
  */
 
 #include "gui.h"
+#include "debuglog.h"
 
 #if defined(LINUX)
   #include <sys/types.h>
@@ -253,16 +254,21 @@ wxArrayString serial_port_list()
 	memset(buffer, 0, QUERYDOSDEVICE_BUFFER_SIZE);
 	ret = QueryDosDeviceA(NULL, buffer, QUERYDOSDEVICE_BUFFER_SIZE);
 	if (ret) {
+		int found = 0;
 		printf("Detect Serial using QueryDosDeviceA: ");
 		for (p = buffer; *p; p += strlen(p) + 1) {
 			printf(":  %s", p);
 			if (strncmp(p, "COM", 3)) continue;
 			list.Add(wxString(p) + ":");
+			found++;
 		}
+		debuglog_printf("serial enumerate QueryDosDeviceA found=%d", found);
 	} else {
 		char buf[1024];
+		int found = 0;
 		buf[0] = 0;
 		//win32_err(buf);
+		debuglog_printf("QueryDosDeviceA failed error=%lu", (unsigned long)GetLastError());
 		printf("QueryDosDeviceA failed, error \"%s\"\n", buf);
 		printf("Detect Serial using brute force GetDefaultCommConfig probing: ");
 		for (int i=1; i<=32; i++) {
@@ -275,15 +281,16 @@ wxArrayString serial_port_list()
 				name.Printf("COM%d:", i);
 				list.Add(name);
 				printf(":  %s", buf);
+				found++;
 			}
 		}
+		debuglog_printf("serial enumerate fallback found=%d", found);
 	}
 	free(buffer);
 #endif
 	list.Sort();
 	return list;
 }
-
 
 
 
