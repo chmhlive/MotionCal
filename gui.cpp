@@ -368,9 +368,13 @@ void MyFrame::OnSendCal(wxCommandEvent &event)
 	} else if (result == 0) {
 		debuglog_printf("calibration sent but confirm failed");
 		m_confirm_icon->SetBitmap(MyBitmap("checkemptygray.png"));
+		wxMessageBox(wxT("下发校准数据后读回校验失败，请重试！\n可能存在蓝牙拥堵或丢包。"),
+			wxT("校准确认失败"), wxOK | wxICON_ERROR);
 	} else {
 		debuglog_printf("calibration send failed");
 		m_confirm_icon->SetBitmap(MyBitmap("checkemptygray.png"));
+		wxMessageBox(wxT("向设备发送校准数据失败！\n请检查设备连接或重试。"),
+			wxT("通讯错误"), wxOK | wxICON_ERROR);
 	}
 }
 
