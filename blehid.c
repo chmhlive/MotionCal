@@ -203,7 +203,12 @@ int blehid_is_device_name(const char *name)
 int blehid_set_run_mode(int mode)
 {
 	int n = send_run_mode((unsigned char)(mode ? 1 : 0));
-	if (n >= 0) debuglog_printf("hid CMD1 mode=%d sent", mode ? 1 : 0);
+	if (n >= 0) {
+		debuglog_printf("hid CMD1 mode=%d sent", mode ? 1 : 0);
+#if defined(WINDOWS)
+		if (mode == 0) Sleep(100);
+#endif
+	}
 	return n;
 }
 
