@@ -4,13 +4,23 @@
 
 ## 编译环境搭建
 
-本项目推荐在 Linux（或 WSL）系统下，使用交叉编译工具链生成 Windows 可执行文件。
-
-1. **环境准备**：需要相应的 C/C++ 编译器（如 GCC/MinGW）。
-2. **准备 wxWidgets**：
-   - 使用目标编译链对 wxWidgets 进行静态或动态编译。
-   - 确保系统环境变量中存在可执行的 `wx-config`，或者在编译时通过环境变量指定。
-3. **依赖库**：项目需要 `hidapi` 以及目标操作系统的相应底层支持库（如 Windows 下的 `SetupAPI`、`Ole32` 等）。
+1. **基础编译工具链**：
+   在 Linux（如 Ubuntu）下执行交叉编译需要安装对应架构的工具链：
+   ```bash
+   sudo apt update
+   sudo apt install build-essential gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 binutils-mingw-w64-x86-64
+   ```
+2. **源码编译 wxWidgets (必做)**：
+   由于跨架构和 C++ ABI 差异，必须针对 MinGW 静态编译 wxWidgets：
+   1. 从官网下载 wxWidgets 3.2+ 源码并解压。
+   2. 在其根目录下执行编译配置与安装：
+      ```bash
+      mkdir build-mingw64 && cd build-mingw64
+      ../configure --host=x86_64-w64-mingw32 --disable-shared --prefix=$PWD/install
+      make -j$(nproc) && make install
+      ```
+   3. 编译完成后，`wx-config` 脚本位于 `install/bin/wx-config`。
+3. **依赖库**：项目通过 `third_party/hidapi` 源码直接集成了对 HID 的支持，编译时 Makefile 会自动通过 MinGW 链接 Windows 底层库（`-lhid -lsetupapi -lole32`）。
 
 ## 编译方法
 
@@ -36,19 +46,32 @@ make clean
 
 本版本舍弃了串口，完全采用标准的 HID Report 报文通信。格式约定如下：
 
-1. **传感器上报数据 (Report ID 3 或 6)**
-   - **格式**：首字节为 ID，其后跟随打包好的加速度计（Acc）、陀螺仪（Gyro）和磁力计（Mag）原始数据。
-   - 长度：通常为 41 或 43 字节以上。
-2. **写参数命令 (CMD 8)**
-   - 用于主机向设备下发配置或校准数据。
-   - **格式**：`[Report ID=8] [参数索引 Index(1字节)] [浮点数值(4字节，小端序)]`
-3. **读参数命令 (CMD 12)**
-   - 用于主机读取设备中储存的数据（如读回确认校验）。
-   - 搭配偏移地址及长度使用。
-4. **采集控制命令 (CMD 1)**
-   - **格式**：`[Report ID=1] [模式 Mode(1字节)]`
-   - `Mode = 0`：暂停传感器数据采集（下发大批量配置前必须执行，防止信道拥堵）。
-   - `Mode = 1`：恢复传感器数据上报。
+1. **传感器上报数据 (Input Report ID 3 或 6)**
+   - 包含传感器融合前的 9 轴底层原始采样，小端序。
+   - **格式约定**：
+     - `Byte 0`: Report ID (3 或 6)
+     - `Byte 1~4`: 硬件时间戳 (uint32)
+     - `Byte 5~16`: 加速度计 Acc X/Y/Z (3×Float32, 单位: m/s²)
+     - `Byte 17~28`: 陀螺仪 Gyro X/Y/Z (3×Float32, 单位: dps)
+     - `Byte 29~40`: 磁力计 Mag X/Y/Z (3×Float32, 单位: µT)
+   - 此数据随后会被按照特定的系数转换为原版需要的 int16 型计数值（Count）。
+
+2. **采集控制命令 (Output Report ID 1 / CMD 1)**
+   - 用于主机启停底层设备的数据流发送。
+   - **格式**：`[Report ID=1] [Command=1] [Mode(1字节)]`
+     - `Mode = 0`：暂停上报（防止下发大批量磁校准矩阵时造成蓝牙拥堵丢包）。
+     - `Mode = 1`：恢复上报。
+
+3. **写参数配置命令 (Output Report ID 1 / CMD 8)**
+   - 向设备写入磁校准参数（硬铁、软铁矩阵）。
+   - **格式**：`[Report ID=1] [Command=8] [参数索引 Index(1字节)] [Payload字节流]`
+     - 当 `Index=0` 时，Payload 为 `1` 字节的使能开关 `0x00/0x01`。
+     - 当 `Index=1~12` 时，Payload 为 `4` 字节的 Float32 校准值。
+
+4. **读参数命令 (Output Report ID 1 / CMD 12)**
+   - 主机用于校验写入是否成功，从设备 EEPROM 偏移行中读回特定长度的字节。
+   - **请求格式**：`[Report ID=1] [Command=12] [Offset(2字节小端)] [Len(1字节)]`
+   - **应答格式 (Input Report ID 4)**：`[Report ID=4] [Offset(2字节小端)] [Len(1字节)] [Payload字节流]`
 
 ## 移植与二次开发指南
 
