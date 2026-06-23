@@ -246,6 +246,8 @@ int send_calibration(void)
 		}
 	}
 	if (blehid_set_mag_cal_enabled(1) < 0) return -1;
+	if (!blehid_confirm_mag_cal_enabled(1)) return -1;
+	if (!blehid_confirm_mag_cal_values(magcal.V, magcal.invW)) return -1;
 	calibration_confirmed();
 	return 1;
 }

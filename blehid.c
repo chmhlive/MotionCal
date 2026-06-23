@@ -12,6 +12,8 @@
 
 #define BLEHID_MAX_DEVICES 8
 #define BLEHID_READ_TIMEOUT_MS 1
+#define BLEHID_READBACK_TIMEOUT_ATTEMPTS 25
+#define BLEHID_READBACK_TIMEOUT_MS 20
 
 typedef struct {
 	char name[128];
@@ -41,6 +43,17 @@ static float read_le_float(const unsigned char *p)
 	tmp[3] = p[3];
 	memcpy(&value, tmp, sizeof(value));
 	return value;
+}
+
+static unsigned short read_le_u16(const unsigned char *p)
+{
+	return (unsigned short)(p[0] | (p[1] << 8));
+}
+
+static void write_le_u16(unsigned char *p, unsigned short value)
+{
+	p[0] = (unsigned char)value;
+	p[1] = (unsigned char)(value >> 8);
 }
 
 static void wide_to_utf8(const wchar_t *src, char *dst, size_t dst_len)
@@ -84,6 +97,13 @@ static int send_run_mode(unsigned char mode)
 static void write_le_float(unsigned char *p, float value)
 {
 	memcpy(p, &value, sizeof(value));
+}
+
+static int is_float_ok(float actual, float expected)
+{
+	float err = fabsf(actual - expected);
+	float maxerr = 0.0001f + fabsf(expected) * 0.00003f;
+	return err <= maxerr;
 }
 
 static void parse_report3_payload(const unsigned char *data, int len, unsigned char report_id)
@@ -197,6 +217,11 @@ int blehid_open(const char *name)
 		blehid_close();
 		return 0;
 	}
+	if (!blehid_confirm_mag_cal_enabled(0)) {
+		debuglog_printf("hid mag calibration disable readback failed");
+		blehid_close();
+		return 0;
+	}
 	if (send_run_mode(1) < 0) {
 		debuglog_printf("hid CMD1 start failed error=%s", hid_error_text());
 		blehid_close();
@@ -247,6 +272,60 @@ int blehid_write_cmd(unsigned char cmd, const unsigned char *data, int len)
 	return n;
 }
 
+static int blehid_read_param(unsigned short offset, unsigned char len, unsigned char *out)
+{
+	unsigned char req[3];
+	unsigned char buf[64];
+	int attempt;
+
+	if (handle == NULL || out == NULL || len == 0 || len > 25) return 0;
+	write_le_u16(req, offset);
+	req[2] = len;
+	if (blehid_write_cmd(12, req, sizeof(req)) < 0) {
+		debuglog_printf("hid CMD12 request failed offset=0x%04X len=%u error=%s",
+			(unsigned)offset, (unsigned)len, hid_error_text());
+		return 0;
+	}
+	debuglog_printf("hid CMD12 read offset=0x%04X len=%u", (unsigned)offset, (unsigned)len);
+	for (attempt = 0; attempt < BLEHID_READBACK_TIMEOUT_ATTEMPTS; attempt++) {
+		int n = hid_read_timeout(handle, buf, sizeof(buf), BLEHID_READBACK_TIMEOUT_MS);
+		if (n < 0) {
+			debuglog_printf("hid CMD12 readback failed offset=0x%04X error=%s",
+				(unsigned)offset, hid_error_text());
+			return 0;
+		}
+		if (n == 0) continue;
+		if (buf[0] == 3 && n >= 41) {
+			parse_report3_payload(buf + 1, n - 1, buf[0]);
+			continue;
+		}
+		if (buf[0] == 6 && n >= 43) {
+			parse_report3_payload(buf + 1, 40, buf[0]);
+			continue;
+		}
+		if (buf[0] == 4 && n >= 4) {
+			unsigned short got_offset = read_le_u16(buf + 1);
+			unsigned char got_len = buf[3];
+			if (got_offset != offset) {
+				debuglog_printf("hid CMD12 ignored offset=0x%04X while waiting for 0x%04X",
+					(unsigned)got_offset, (unsigned)offset);
+				continue;
+			}
+			if (got_len < len || n < (int)(4 + len)) {
+				debuglog_printf("hid CMD12 short response offset=0x%04X got_len=%u bytes=%d expected=%u",
+					(unsigned)offset, (unsigned)got_len, n, (unsigned)len);
+				return 0;
+			}
+			memcpy(out, buf + 4, len);
+			debuglog_printf("hid CMD12 readback offset=0x%04X len=%u ok", (unsigned)offset, (unsigned)len);
+			return 1;
+		}
+		debuglog_verbose_printf("hid CMD12 ignored report id=%u bytes=%d", (unsigned)buf[0], n);
+	}
+	debuglog_printf("hid CMD12 readback timeout offset=0x%04X len=%u", (unsigned)offset, (unsigned)len);
+	return 0;
+}
+
 int blehid_write_mag_cal(unsigned char index, float value)
 {
 	unsigned char data[5];
@@ -266,12 +345,65 @@ int blehid_set_mag_cal_enabled(int enabled)
 	return n;
 }
 
+int blehid_confirm_mag_cal_enabled(int enabled)
+{
+	unsigned char value;
+
+	if (!blehid_read_param(0x002E, 1, &value)) return 0;
+	if (value != (unsigned char)(enabled ? 1 : 0)) {
+		debuglog_printf("hid mag_cal_enable mismatch expected=%d actual=%u",
+			enabled ? 1 : 0, (unsigned)value);
+		return 0;
+	}
+	debuglog_printf("hid mag_cal_enable confirmed=%d", enabled ? 1 : 0);
+	return 1;
+}
+
+int blehid_confirm_mag_cal_values(const float hard_iron[3], const float soft_iron[3][3])
+{
+	unsigned char hard[12];
+	unsigned char soft0[24];
+	unsigned char soft1[12];
+	float actual;
+	int i, row, col;
+
+	if (!blehid_read_param(0x0030, sizeof(hard), hard)) return 0;
+	if (!blehid_read_param(0x003C, sizeof(soft0), soft0)) return 0;
+	if (!blehid_read_param(0x0054, sizeof(soft1), soft1)) return 0;
+	for (i = 0; i < 3; i++) {
+		actual = read_le_float(hard + i * 4);
+		if (!is_float_ok(actual, hard_iron[i])) {
+			debuglog_printf("hid cal hard[%d] mismatch expected=%.6f actual=%.6f", i, hard_iron[i], actual);
+			return 0;
+		}
+		debuglog_printf("hid cal hard[%d] expected=%.6f actual=%.6f ok", i, hard_iron[i], actual);
+	}
+	for (row = 0; row < 3; row++) {
+		for (col = 0; col < 3; col++) {
+			int index = row * 3 + col;
+			const unsigned char *p = index < 6 ? soft0 + index * 4 : soft1 + (index - 6) * 4;
+			actual = read_le_float(p);
+			if (!is_float_ok(actual, soft_iron[row][col])) {
+				debuglog_printf("hid cal soft[%d][%d] mismatch expected=%.6f actual=%.6f",
+					row, col, soft_iron[row][col], actual);
+				return 0;
+			}
+			debuglog_printf("hid cal soft[%d][%d] expected=%.6f actual=%.6f ok",
+				row, col, soft_iron[row][col], actual);
+		}
+	}
+	debuglog_printf("hid mag calibration readback confirmed");
+	return 1;
+}
+
 void blehid_close(void)
 {
 	if (handle == NULL) return;
 	send_run_mode(0);
 	debuglog_printf("hid CMD1 mode=0 sent");
-	blehid_set_mag_cal_enabled(1);
+	if (blehid_set_mag_cal_enabled(1) >= 0) {
+		blehid_confirm_mag_cal_enabled(1);
+	}
 	hid_close(handle);
 	handle = NULL;
 	debuglog_printf("hid close");

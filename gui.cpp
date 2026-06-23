@@ -6,6 +6,14 @@
 wxString device_name;
 static bool show_calibration_confirmed = false;
 
+static const float SENDCAL_GAPS_MAX = 15.0f;
+static const float SENDCAL_VARIANCE_MAX = 4.5f;
+static const float SENDCAL_WOBBLE_MAX = 4.0f;
+static const float SENDCAL_FIT_MAX = 5.0f;
+static const float SENDCAL_GAPS_DISABLE = 20.0f;
+static const float SENDCAL_VARIANCE_DISABLE = 5.0f;
+static const float SENDCAL_WOBBLE_DISABLE = 5.0f;
+static const float SENDCAL_FIT_DISABLE = 6.0f;
 
 wxBEGIN_EVENT_TABLE(MyCanvas, wxGLCanvas)
 	EVT_SIZE(MyCanvas::OnSize)
@@ -182,6 +190,10 @@ MyFrame::MyFrame(wxWindow *parent, wxWindowID id, const wxString &title,
 	m_err_fit = new wxStaticText(panel, wxID_ANY, "100.0%");
 	vsizer->Add(m_err_fit, 1, wxALIGN_CENTER_HORIZONTAL);
 
+	text = new wxStaticText(panel, wxID_ANY,
+		"Send Cal: Gaps < 15.0%, Variance < 4.5%, Wobble < 4.0%, Fit < 5.0%");
+	middlesizer->Add(text, 0, wxALIGN_CENTER_HORIZONTAL | wxBOTTOM, 5);
+
 	calsizer = new wxBoxSizer(wxVERTICAL);
 	rightsizer->Add(calsizer, 0, wxALL, 8);
 	text = new wxStaticText(panel, wxID_ANY, "Magnetic Offset");
@@ -266,13 +278,15 @@ void MyFrame::OnTimer(wxTimerEvent &event)
 		variance = quality_magnitude_variance_error();
 		wobble = quality_wobble_error();
 		fiterror = quality_spherical_fit_error();
-		if (gaps < 15.0f && variance < 4.5f && wobble < 4.0f && fiterror < 5.0f) {
+		if (gaps < SENDCAL_GAPS_MAX && variance < SENDCAL_VARIANCE_MAX
+		  && wobble < SENDCAL_WOBBLE_MAX && fiterror < SENDCAL_FIT_MAX) {
 			if (!m_sendcal_menu->IsEnabled(ID_SENDCAL_MENU) || !m_button_sendcal->IsEnabled()) {
 				m_sendcal_menu->Enable(ID_SENDCAL_MENU, true);
 				m_button_sendcal->Enable(true);
 				m_confirm_icon->SetBitmap(MyBitmap("checkempty.png"));
 			}
-		} else if (gaps > 20.0f && variance > 5.0f && wobble > 5.0f && fiterror > 6.0f) {
+		} else if (gaps > SENDCAL_GAPS_DISABLE && variance > SENDCAL_VARIANCE_DISABLE
+		  && wobble > SENDCAL_WOBBLE_DISABLE && fiterror > SENDCAL_FIT_DISABLE) {
 			if (m_sendcal_menu->IsEnabled(ID_SENDCAL_MENU) || m_button_sendcal->IsEnabled()) {
 				m_sendcal_menu->Enable(ID_SENDCAL_MENU, false);
 				m_button_sendcal->Enable(false);
