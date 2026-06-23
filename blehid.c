@@ -81,6 +81,11 @@ static int send_run_mode(unsigned char mode)
 	return blehid_write_cmd(1, data, 1);
 }
 
+static void write_le_float(unsigned char *p, float value)
+{
+	memcpy(p, &value, sizeof(value));
+}
+
 static void parse_report3_payload(const unsigned char *data, int len, unsigned char report_id)
 {
 	float accel[3], gyro[3], mag[3];
@@ -187,6 +192,11 @@ int blehid_open(const char *name)
 	}
 	read_count = 0;
 	debuglog_printf("hid open ok name=%s path=%s", devices[index].name, devices[index].path);
+	if (blehid_set_mag_cal_enabled(0) < 0) {
+		debuglog_printf("hid CMD8 disable mag calibration failed error=%s", hid_error_text());
+		blehid_close();
+		return 0;
+	}
 	if (send_run_mode(1) < 0) {
 		debuglog_printf("hid CMD1 start failed error=%s", hid_error_text());
 		blehid_close();
@@ -237,11 +247,31 @@ int blehid_write_cmd(unsigned char cmd, const unsigned char *data, int len)
 	return n;
 }
 
+int blehid_write_mag_cal(unsigned char index, float value)
+{
+	unsigned char data[5];
+	int n;
+
+	data[0] = index;
+	write_le_float(data + 1, value);
+	n = blehid_write_cmd(8, data, sizeof(data));
+	debuglog_printf("hid CMD8 idx=%u value=%.6f result=%d", (unsigned)index, value, n);
+	return n;
+}
+
+int blehid_set_mag_cal_enabled(int enabled)
+{
+	int n = blehid_write_mag_cal(0, enabled ? 1.0f : 0.0f);
+	if (n >= 0) debuglog_printf("hid CMD8 mag_cal_enable=%d sent", enabled ? 1 : 0);
+	return n;
+}
+
 void blehid_close(void)
 {
 	if (handle == NULL) return;
 	send_run_mode(0);
 	debuglog_printf("hid CMD1 mode=0 sent");
+	blehid_set_mag_cal_enabled(1);
 	hid_close(handle);
 	handle = NULL;
 	debuglog_printf("hid close");

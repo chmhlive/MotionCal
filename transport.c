@@ -19,9 +19,8 @@ int read_device_data(void)
 
 int write_device_data(const void *ptr, int len)
 {
-	(void)ptr;
-	debuglog_printf("hid calibration write not implemented len=%d", len);
-	return -1;
+	if (ptr == NULL || len < 1) return -1;
+	return blehid_write_cmd(((const unsigned char *)ptr)[0], (const unsigned char *)ptr + 1, len - 1);
 }
 
 void close_device(void)
